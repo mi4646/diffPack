@@ -33,6 +33,26 @@ function showError(title: string, message: string) {
   showDialog.value = true;
 }
 
+// commit 详情弹框
+const showDetailDialog = ref(false);
+const detailCommit = ref<CommitInfo | null>(null);
+
+function showCommitDetail(commit: CommitInfo) {
+  detailCommit.value = commit;
+  showDetailDialog.value = true;
+}
+
+function formatDetailMessage(commit: CommitInfo): string {
+  return [
+    `Hash：${commit.hash}`,
+    `作者：${commit.author} <${commit.email}>`,
+    `时间：${commit.date}`,
+    ``,
+    `提交说明：`,
+    commit.message,
+  ].join("\n");
+}
+
 // 日期范围快捷选项
 const datePresets = [
   { label: "今天", days: 0 },
@@ -196,6 +216,17 @@ watch(selectionMode, async () => {
     }
   }
 });
+
+// 仓库路径被清空时重置所有状态
+watch(repoPathInput, (val) => {
+  if (!val) {
+    gitStore.reset();
+    commitSearchKeyword.value = "";
+    selectionMode.value = "range";
+    startDate.value = "";
+    endDate.value = "";
+  }
+});
 </script>
 
 <template>
@@ -298,14 +329,25 @@ watch(selectionMode, async () => {
           }"
           @click="selectCommit(commit, index)"
         >
-          <span class="commit-hash" :title="commit.hash">
-            {{ appStore.showFullCommitId ? commit.hash : commit.shortHash }}
-          </span>
-          <span class="commit-message">{{ commit.message }}</span>
-          <span class="commit-meta">
-            <span class="commit-author">{{ commit.author }}</span>
-            <span class="commit-date">{{ commit.date }}</span>
-          </span>
+          <!-- 第一行：hash + 作者 + 时间 + 详情 -->
+          <div class="commit-header">
+            <div class="commit-header-left">
+              <span class="commit-hash-badge" :title="commit.hash">
+                {{ appStore.showFullCommitId ? commit.hash : commit.shortHash }}
+              </span>
+              <span class="commit-author">{{ commit.author }}</span>
+              <span class="commit-date">{{ commit.date }}</span>
+            </div>
+            <button
+              class="detail-btn"
+              title="查看详情"
+              @click.stop="showCommitDetail(commit)"
+            >详情</button>
+          </div>
+          <!-- 第二行：commit 描述 -->
+          <div class="commit-body">
+            <span class="commit-message">{{ commit.message }}</span>
+          </div>
         </div>
       </div>
 
@@ -385,6 +427,16 @@ watch(selectionMode, async () => {
     :message="dialogMessage"
     :type="dialogType"
     @close="showDialog = false"
+  />
+
+  <!-- commit 详情弹框 -->
+  <AppDialog
+    v-if="detailCommit"
+    :visible="showDetailDialog"
+    title="Commit 详情"
+    :message="formatDetailMessage(detailCommit)"
+    type="info"
+    @close="showDetailDialog = false"
   />
 </template>
 
@@ -533,9 +585,9 @@ watch(selectionMode, async () => {
 
 .commit-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
@@ -561,29 +613,79 @@ watch(selectionMode, async () => {
   background: #91d5ff;
 }
 
-.commit-hash {
+/* 第一行：hash + 作者 + 日期 + 详情按钮 */
+.commit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.commit-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.commit-hash-badge {
   font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--primary-color);
-  font-weight: 500;
+  background: rgba(24, 144, 255, 0.08);
+  border: 1px solid rgba(24, 144, 255, 0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
+  flex-shrink: 0;
   cursor: default;
 }
 
-.commit-message {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.commit-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color);
   white-space: nowrap;
 }
 
-.commit-meta {
-  display: flex;
-  gap: 12px;
+.commit-date {
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.detail-btn {
+  padding: 1px 8px;
+  font-size: 11px;
+  height: auto;
+  line-height: 1.6;
+  background: transparent;
+  color: var(--primary-color);
+  border: 1px solid rgba(24, 144, 255, 0.35);
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.detail-btn:hover {
+  background: rgba(24, 144, 255, 0.08);
+}
+
+/* 第二行：commit 说明 */
+.commit-body {
+  padding-left: 2px;
+}
+
+.commit-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 
 .selected-info {

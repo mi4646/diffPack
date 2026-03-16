@@ -83,15 +83,17 @@ function doConfirmClear() {
       </div>
 
       <div class="setting-row">
-        <label>Commit ID 显示：</label>
-        <label class="toggle-label">
-          <input
-            type="checkbox"
-            v-model="showFullCommitId"
-          />
-          显示完整 Commit ID
-        </label>
-        <span class="setting-hint">关闭时仅显示前 7 位短 ID</span>
+        <label>Commit ID 格式：</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" :value="false" v-model="showFullCommitId" />
+            短 ID（7 位）
+          </label>
+          <label class="radio-label">
+            <input type="radio" :value="true" v-model="showFullCommitId" />
+            完整 ID（40 位）
+          </label>
+        </div>
       </div>
 
       <button @click="saveSettings" class="save-btn">保存设置</button>
@@ -179,16 +181,18 @@ function doConfirmClear() {
   margin-top: 8px;
 }
 
-.toggle-label {
+.radio-group {
   display: flex;
+  gap: 16px;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  min-width: unset;
 }
 
-.setting-hint {
-  font-size: 12px;
-  color: var(--text-secondary);
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  min-width: unset;
 }
 </style>

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Commit 信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitInfo {
     pub hash: String,
     pub short_hash: String,
@@ -25,6 +26,7 @@ pub enum FileChangeType {
 
 /// 文件变更信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileChange {
     pub path: String,
     pub change_type: FileChangeType,
@@ -33,6 +35,7 @@ pub struct FileChange {
 
 /// 差异结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiffResult {
     pub commits: Vec<CommitInfo>,
     pub changes: Vec<FileChange>,
@@ -43,6 +46,7 @@ pub struct DiffResult {
 
 /// 仓库信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoInfo {
     pub path: String,
     pub name: String,
@@ -53,6 +57,7 @@ pub struct RepoInfo {
 
 /// Commit 查询选项
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitQueryOptions {
     pub branch: Option<String>,
     pub limit: Option<usize>,
