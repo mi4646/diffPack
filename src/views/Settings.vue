@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { usePackStore } from "@/stores";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const packStore = usePackStore();
 
 const defaultFormat = ref<"zip" | "tarGz">("zip");
 const defaultOutputPath = ref("");
+
+// 弹框状态
+const showDialog = ref(false);
+const dialogTitle = ref("");
+const dialogMessage = ref("");
+const dialogType = ref<"success" | "error" | "warning" | "info">("info");
+const showConfirmDialog = ref(false);
 
 onMounted(() => {
   defaultFormat.value = packStore.options.format;
@@ -22,6 +30,10 @@ function saveSettings() {
     defaultFormat: defaultFormat.value,
     defaultOutputPath: defaultOutputPath.value,
   }));
+  dialogTitle.value = "保存成功";
+  dialogMessage.value = "设置已成功保存。";
+  dialogType.value = "success";
+  showDialog.value = true;
 }
 
 async function browseOutputPath() {
@@ -32,7 +44,15 @@ async function browseOutputPath() {
 }
 
 function clearHistory() {
+  showConfirmDialog.value = true;
+}
+
+function doConfirmClear() {
   packStore.clearHistory();
+  dialogTitle.value = "已清除";
+  dialogMessage.value = "历史记录已全部清除。";
+  dialogType.value = "success";
+  showDialog.value = true;
 }
 </script>
 
@@ -71,6 +91,27 @@ function clearHistory() {
       <p class="tech-stack">技术栈: Tauri 2.x + Vue 3 + TypeScript</p>
     </section>
   </div>
+
+  <!-- 成功/信息弹框 -->
+  <AppDialog
+    :visible="showDialog"
+    :title="dialogTitle"
+    :message="dialogMessage"
+    :type="dialogType"
+    @close="showDialog = false"
+  />
+
+  <!-- 确认清除历史弹框 -->
+  <AppDialog
+    :visible="showConfirmDialog"
+    title="确认清除"
+    message="确定要清除所有历史记录吗？此操作无法恢复。"
+    type="warning"
+    :show-cancel="true"
+    confirm-text="确认清除"
+    @confirm="doConfirmClear"
+    @close="showConfirmDialog = false"
+  />
 </template>
 
 <style scoped>

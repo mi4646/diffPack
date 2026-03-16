@@ -1,9 +1,21 @@
 <script setup lang="ts">
+import { ref, watch, onMounted } from "vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 import type { PackResult } from "@/types";
 
-defineProps<{
+const props = defineProps<{
   result: PackResult;
 }>();
+
+const showDialog = ref(false);
+
+onMounted(() => {
+  showDialog.value = true;
+});
+
+watch(() => props.result, () => {
+  showDialog.value = true;
+});
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
@@ -18,68 +30,71 @@ function formatDuration(ms: number): string {
 </script>
 
 <template>
-  <div class="pack-result" :class="{ success: result.success, error: !result.success }">
-    <div v-if="result.success" class="result-success">
-      <div class="result-icon">✓</div>
-      <h4>打包完成</h4>
-      <div class="result-details">
-        <p><strong>输出路径：</strong>{{ result.outputPath }}</p>
-        <p><strong>文件数量：</strong>{{ result.fileCount }}</p>
-        <p><strong>文件大小：</strong>{{ formatSize(result.totalSize) }}</p>
-        <p><strong>耗时：</strong>{{ formatDuration(result.durationMs) }}</p>
+  <AppDialog
+    :visible="showDialog"
+    :title="result.success ? '打包完成' : '打包失败'"
+    :type="result.success ? 'success' : 'error'"
+    @close="showDialog = false"
+  >
+    <div v-if="result.success" class="result-details">
+      <div class="detail-row">
+        <span class="detail-label">输出路径：</span>
+        <span class="detail-value path">{{ result.outputPath }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">文件数量：</span>
+        <span class="detail-value">{{ result.fileCount }} 个文件</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">文件大小：</span>
+        <span class="detail-value">{{ formatSize(result.totalSize) }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">耗时：</span>
+        <span class="detail-value">{{ formatDuration(result.durationMs) }}</span>
       </div>
     </div>
-    <div v-else class="result-error">
-      <div class="result-icon">✗</div>
-      <h4>打包失败</h4>
-      <p class="error-message">{{ result.error }}</p>
+    <div v-else class="result-error-msg">
+      {{ result.error }}
     </div>
-  </div>
+  </AppDialog>
 </template>
 
 <style scoped>
-.pack-result {
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.pack-result.success {
-  background: #f6ffed;
-  border: 1px solid #b7eb8f;
-}
-
-.pack-result.error {
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
-}
-
-.result-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
-}
-
-.success .result-icon {
-  color: var(--success-color);
-}
-
-.error .result-icon {
-  color: var(--error-color);
-}
-
-.result-success h4,
-.result-error h4 {
-  margin-bottom: 12px;
-}
-
 .result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   font-size: 14px;
 }
 
-.result-details p {
-  margin: 4px 0;
+.detail-label {
+  min-width: 80px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
-.error-message {
+.detail-value {
+  color: var(--text-color);
+  flex: 1;
+  word-break: break-all;
+}
+
+.detail-value.path {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.result-error-msg {
   color: var(--error-color);
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-all;
 }
 </style>

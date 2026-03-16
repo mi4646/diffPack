@@ -1,6 +1,7 @@
 use crate::git::{get_changed_file_paths, open_repo};
 use crate::models::{FileChange, PackOptions, PackResult};
 use crate::pack::{collect_files, create_tar_gz, create_zip};
+use chrono::Local;
 use std::path::Path;
 use tauri::{command, AppHandle, Emitter};
 
@@ -25,14 +26,21 @@ pub async fn pack_local_changes(
     }
 
     let base_dir = Path::new(&repo_path);
-    let output_path = Path::new(&options.output_path);
+    let output_dir = Path::new(&options.output_path);
 
     // 确保输出目录存在
-    if let Some(parent) = output_path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
+    if !output_dir.exists() {
+        std::fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
     }
+
+    // 自动生成带时间戳的输出文件名（outputPath 是目录）
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+    let ext = match options.format {
+        crate::models::PackFormat::Zip => "zip",
+        crate::models::PackFormat::TarGz => "tar.gz",
+    };
+    let filename = format!("diff_pack_{}.{}", timestamp, ext);
+    let output_path = output_dir.join(&filename);
 
     let progress_callback = |progress: crate::models::PackProgress| {
         let _ = app_handle.emit("pack-progress", progress);
@@ -40,10 +48,10 @@ pub async fn pack_local_changes(
 
     let result = match options.format {
         crate::models::PackFormat::Zip => {
-            create_zip(output_path, &all_files, base_dir, &options, Some(progress_callback))
+            create_zip(&output_path, &all_files, base_dir, &options, Some(progress_callback))
         }
         crate::models::PackFormat::TarGz => {
-            create_tar_gz(output_path, &all_files, base_dir, &options, Some(progress_callback))
+            create_tar_gz(&output_path, &all_files, base_dir, &options, Some(progress_callback))
         }
     };
 

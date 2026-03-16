@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// 打包格式
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum PackFormat {
     Zip,
     TarGz,
@@ -10,6 +10,7 @@ pub enum PackFormat {
 
 /// 打包选项
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PackOptions {
     pub format: PackFormat,
     pub output_path: String,
@@ -20,6 +21,7 @@ pub struct PackOptions {
 
 /// 打包进度
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PackProgress {
     pub current_file: String,
     pub processed: usize,
@@ -29,6 +31,7 @@ pub struct PackProgress {
 
 /// 打包结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PackResult {
     pub success: bool,
     pub output_path: String,

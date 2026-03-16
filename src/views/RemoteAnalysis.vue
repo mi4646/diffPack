@@ -6,6 +6,7 @@ import SshConnectionStatus from "@/components/ssh/SshConnectionStatus.vue";
 import PackOptions from "@/components/pack/PackOptions.vue";
 import PackProgress from "@/components/pack/PackProgress.vue";
 import PackResult from "@/components/pack/PackResult.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const sshStore = useSshStore();
 const gitStore = useGitStore();
@@ -13,6 +14,19 @@ const packStore = usePackStore();
 
 const remoteRepoPath = ref("");
 const selectionMode = ref<"range" | "date">("range");
+
+// 弹框状态
+const showDialog = ref(false);
+const dialogTitle = ref("");
+const dialogMessage = ref("");
+const dialogType = ref<"success" | "error" | "warning" | "info">("error");
+
+function showError(title: string, message: string) {
+  dialogTitle.value = title;
+  dialogMessage.value = message;
+  dialogType.value = "error";
+  showDialog.value = true;
+}
 
 onMounted(() => {
   sshStore.loadSshConfig();
@@ -40,7 +54,8 @@ async function startPack() {
       remoteRepoPath.value
     );
   } catch (e) {
-    console.error("Pack failed:", e);
+    const errStr = e instanceof Error ? e.message : String(e);
+    showError("打包失败", errStr);
   }
 }
 </script>
@@ -144,6 +159,14 @@ async function startPack() {
       <PackResult v-if="packStore.currentTask?.result" :result="packStore.currentTask.result" />
     </section>
   </div>
+
+  <AppDialog
+    :visible="showDialog"
+    :title="dialogTitle"
+    :message="dialogMessage"
+    :type="dialogType"
+    @close="showDialog = false"
+  />
 </template>
 
 <style scoped>

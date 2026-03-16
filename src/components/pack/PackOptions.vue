@@ -39,10 +39,14 @@ const packStore = usePackStore();
       </label>
     </div>
 
+    <div v-if="!packStore.options.outputPath" class="warn-message">
+      请先选择输出目录
+    </div>
+
     <button
       class="pack-btn"
       @click="$emit('pack')"
-      :disabled="packStore.isPacking"
+      :disabled="packStore.isPacking || !packStore.options.outputPath"
     >
       {{ packStore.isPacking ? "打包中..." : "开始打包" }}
     </button>
@@ -86,5 +90,11 @@ const packStore = usePackStore();
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
+}
+
+.warn-message {
+  font-size: 12px;
+  color: #faad14;
+  margin-top: 4px;
 }
 </style>

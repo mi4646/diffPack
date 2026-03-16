@@ -6,6 +6,7 @@ import { openInExplorer } from "@/services/packService";
 import PackOptions from "@/components/pack/PackOptions.vue";
 import PackProgress from "@/components/pack/PackProgress.vue";
 import PackResult from "@/components/pack/PackResult.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 import type { CommitInfo } from "@/types";
 
 const gitStore = useGitStore();
@@ -16,19 +17,17 @@ const selectionMode = ref<"range" | "list" | "date">("range");
 const startDate = ref("");
 const endDate = ref("");
 
-// 错误弹框状态
-const showErrorDialog = ref(false);
-const errorDialogTitle = ref("");
-const errorDialogMessage = ref("");
-
-function closeErrorDialog() {
-  showErrorDialog.value = false;
-}
+// 弹框状态
+const showDialog = ref(false);
+const dialogTitle = ref("");
+const dialogMessage = ref("");
+const dialogType = ref<"success" | "error" | "warning" | "info">("error");
 
 function showError(title: string, message: string) {
-  errorDialogTitle.value = title;
-  errorDialogMessage.value = message;
-  showErrorDialog.value = true;
+  dialogTitle.value = title;
+  dialogMessage.value = message;
+  dialogType.value = "error";
+  showDialog.value = true;
 }
 
 // 日期范围快捷选项
@@ -105,7 +104,12 @@ function selectCommit(commit: CommitInfo, _index: number) {
 }
 
 async function analyzeDiff() {
-  await gitStore.analyzeDiff();
+  try {
+    await gitStore.analyzeDiff();
+  } catch (e) {
+    const errStr = e instanceof Error ? e.message : String(e);
+    showError("分析差异失败", errStr);
+  }
 }
 
 async function startPack() {
@@ -140,16 +144,26 @@ async function handleFilePathClick(filePath: string) {
   }
 }
 
-watch([startDate, endDate], () => {
+watch([startDate, endDate], async () => {
   if (selectionMode.value === "date" && gitStore.hasRepo) {
-    loadCommits();
+    try {
+      await loadCommits();
+    } catch (e) {
+      const errStr = e instanceof Error ? e.message : String(e);
+      showError("加载提交失败", errStr);
+    }
   }
 });
 
-watch(selectionMode, () => {
+watch(selectionMode, async () => {
   gitStore.selectedCommits = [];
   if (selectionMode.value === "date" && gitStore.hasRepo) {
-    loadCommits();
+    try {
+      await loadCommits();
+    } catch (e) {
+      const errStr = e instanceof Error ? e.message : String(e);
+      showError("加载提交失败", errStr);
+    }
   }
 });
 </script>
@@ -175,7 +189,7 @@ watch(selectionMode, () => {
         <span class="repo-name">{{ gitStore.repoInfo.name }}</span>
         <span class="branch-badge">{{ gitStore.repoInfo.currentBranch }}</span>
       </div>
-      <div v-if="gitStore.error" class="error-message">{{ gitStore.error }}</div>
+
     </section>
 
     <!-- Commit 选择 -->
@@ -312,23 +326,13 @@ watch(selectionMode, () => {
     </section>
   </div>
 
-  <!-- 错误弹框 -->
-  <Teleport to="body">
-    <div v-if="showErrorDialog" class="error-dialog-overlay" @click.self="closeErrorDialog">
-      <div class="error-dialog">
-        <div class="error-dialog-header">
-          <span class="error-dialog-icon">⚠</span>
-          <span class="error-dialog-title">{{ errorDialogTitle }}</span>
-        </div>
-        <div class="error-dialog-body">
-          <p>{{ errorDialogMessage }}</p>
-        </div>
-        <div class="error-dialog-footer">
-          <button class="error-dialog-btn" @click="closeErrorDialog">确定</button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
+  <AppDialog
+    :visible="showDialog"
+    :title="dialogTitle"
+    :message="dialogMessage"
+    :type="dialogType"
+    @close="showDialog = false"
+  />
 </template>
 
 <style scoped>
@@ -586,80 +590,5 @@ watch(selectionMode, () => {
   color: white;
 }
 
-/* 错误弹框 */
-.error-dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
 
-.error-dialog {
-  background: var(--card-bg, #fff);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  min-width: 360px;
-  max-width: 520px;
-  width: 90%;
-  padding: 0;
-  overflow: hidden;
-}
-
-.error-dialog-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.error-dialog-icon {
-  font-size: 20px;
-  color: #faad14;
-  flex-shrink: 0;
-}
-
-.error-dialog-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.error-dialog-body {
-  padding: 16px 20px;
-}
-
-.error-dialog-body p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-color);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.error-dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-color);
-}
-
-.error-dialog-btn {
-  min-width: 80px;
-  padding: 6px 20px;
-  background: var(--primary-color);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.error-dialog-btn:hover {
-  opacity: 0.85;
-}
 </style>

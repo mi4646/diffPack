@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useSshStore } from "@/stores";
+import AppDialog from "@/components/common/AppDialog.vue";
 import type { SshConfig, AuthMethod } from "@/types";
 
 const sshStore = useSshStore();
@@ -14,7 +15,12 @@ const keyPath = ref("");
 const passphrase = ref("");
 
 const isConnecting = ref(false);
-const testResult = ref<{ success: boolean; message: string } | null>(null);
+
+// 弹框状态
+const showDialog = ref(false);
+const dialogTitle = ref("");
+const dialogMessage = ref("");
+const dialogType = ref<"success" | "error" | "warning" | "info">("info");
 
 onMounted(() => {
   sshStore.loadSshConfig();
@@ -44,21 +50,20 @@ function getConfig(): SshConfig {
 }
 
 async function testConnection() {
-  testResult.value = null;
   isConnecting.value = true;
   try {
     const status = await sshStore.testConnection(getConfig());
-    testResult.value = {
-      success: status.connected,
-      message: status.connected
-        ? `连接成功: ${status.serverInfo}`
-        : status.error || "连接失败",
-    };
+    dialogTitle.value = status.connected ? "连接成功" : "连接失败";
+    dialogMessage.value = status.connected
+      ? `连接成功: ${status.serverInfo}`
+      : status.error || "连接失败";
+    dialogType.value = status.connected ? "success" : "error";
+    showDialog.value = true;
   } catch (e) {
-    testResult.value = {
-      success: false,
-      message: e instanceof Error ? e.message : String(e),
-    };
+    dialogTitle.value = "连接失败";
+    dialogMessage.value = e instanceof Error ? e.message : String(e);
+    dialogType.value = "error";
+    showDialog.value = true;
   } finally {
     isConnecting.value = false;
   }
@@ -68,7 +73,10 @@ async function connect() {
   try {
     await sshStore.connect(getConfig());
   } catch (e) {
-    console.error("Connect failed:", e);
+    dialogTitle.value = "连接失败";
+    dialogMessage.value = e instanceof Error ? e.message : String(e);
+    dialogType.value = "error";
+    showDialog.value = true;
   }
 }
 
@@ -160,12 +168,7 @@ async function browseKeyFile() {
       </div>
     </div>
 
-    <!-- 测试结果 -->
-    <div v-if="testResult" class="test-result" :class="{ success: testResult.success, error: !testResult.success }">
-      {{ testResult.message }}
-    </div>
-
-    <!-- 操作按钮 -->
+    <!-- 操作按鈕 -->
     <div class="form-actions">
       <button @click="testConnection" :disabled="isConnecting || !host || !username">
         测试连接
@@ -175,6 +178,14 @@ async function browseKeyFile() {
       </button>
     </div>
   </div>
+
+  <AppDialog
+    :visible="showDialog"
+    :title="dialogTitle"
+    :message="dialogMessage"
+    :type="dialogType"
+    @close="showDialog = false"
+  />
 </template>
 
 <style scoped>
@@ -242,22 +253,6 @@ async function browseKeyFile() {
 
 .key-file-row input {
   flex: 1;
-}
-
-.test-result {
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.test-result.success {
-  background: #f6ffed;
-  color: var(--success-color);
-}
-
-.test-result.error {
-  background: #fff2f0;
-  color: var(--error-color);
 }
 
 .form-actions {
