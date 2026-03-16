@@ -92,13 +92,28 @@ function setDatePreset(days: number) {
 }
 
 function selectCommit(commit: CommitInfo, _index: number) {
-  if (selectionMode.value === "range") {
+  if (selectionMode.value === "range" || selectionMode.value === "date") {
+    // 范围/时间范围模式：依次选两个端点
     if (gitStore.selectedCommits.length === 0) {
       gitStore.selectedCommits = [commit.hash];
     } else if (gitStore.selectedCommits.length === 1) {
-      gitStore.selectedCommits = [gitStore.selectedCommits[0], commit.hash];
+      if (gitStore.selectedCommits[0] === commit.hash) {
+        // 点击同一个 commit 取消选择
+        gitStore.selectedCommits = [];
+      } else {
+        gitStore.selectedCommits = [gitStore.selectedCommits[0], commit.hash];
+      }
     } else {
+      // 已选两个，重新开始
       gitStore.selectedCommits = [commit.hash];
+    }
+  } else if (selectionMode.value === "list") {
+    // 列表模式：多选切换
+    const idx = gitStore.selectedCommits.indexOf(commit.hash);
+    if (idx === -1) {
+      gitStore.selectedCommits = [...gitStore.selectedCommits, commit.hash];
+    } else {
+      gitStore.selectedCommits = gitStore.selectedCommits.filter(h => h !== commit.hash);
     }
   }
 }
@@ -235,6 +250,14 @@ watch(selectionMode, async () => {
       </div>
 
       <!-- Commit 列表 -->
+      <div class="commit-mode-hint">
+        <span v-if="selectionMode === 'range' || selectionMode === 'date'">
+          点击选择起始 commit，再次点击选择终止 commit
+        </span>
+        <span v-else-if="selectionMode === 'list'">
+          点击可多选，将对第一个和第二个选中的 commit 进行差异分析
+        </span>
+      </div>
       <div class="commit-list">
         <div
           v-for="(commit, index) in gitStore.commits"
@@ -427,6 +450,13 @@ watch(selectionMode, async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.commit-mode-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 4px 0;
 }
 
 .commit-list {
