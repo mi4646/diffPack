@@ -1,0 +1,35 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "DiffPack",
+    "version": "0.1.0",
+    "identifier": "com.diffpack.app",
+    "build": {
+        "beforeDevCommand": "npm run dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "npm run build",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "withGlobalTauri": true,
+        "windows": [
+            {
+                "title": "DiffPack - Git 差异打包器",
+                "width": 1200,
+                "height": 800,
+                "resizable": true,
+                "fullscreen": false,
+                "center": true
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "icon": []
+    },
+    "plugins": {
+        "dialog": null,
+        "fs": null
+    }
+}

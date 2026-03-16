@@ -1,0 +1,49 @@
+# qoder
+.qoder/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri
+/src-tauri/target
+/src-tauri/bundles
+/src-tauri/info.plist
+/src-tauri/*.log
+/src-tauri/*.dmg
+/src-tauri/*.msi
+/src-tauri/*.exe
+/src-tauri/*.deb
+/src-tauri/*.rpm
+/src-tauri/*.AppImage
+
+# Environment variables
+.env
+.env.*.local
+
+# OS files
+Thumbs.db
+.DS_Store
