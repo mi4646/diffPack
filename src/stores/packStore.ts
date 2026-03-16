@@ -71,6 +71,8 @@ export const usePackStore = defineStore("pack", () => {
                 currentTask.value.result = result;
             }
             history.value.unshift(result);
+            // 打包完成后稍延清除进度，让 100% 状态展示片刻再消失
+            setTimeout(() => { progress.value = null; }, 600);
             return result;
         } catch (e) {
             if (currentTask.value) {

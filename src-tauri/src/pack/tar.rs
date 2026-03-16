@@ -23,8 +23,7 @@ pub fn create_tar_gz(
 
     for file_path in source_files {
         if file_path.is_file() {
-            let relative_path = file_path.strip_prefix(base_dir)
-                .unwrap_or(file_path);
+            let relative_path = file_path.strip_prefix(base_dir).unwrap_or(file_path);
 
             if let Some(cb) = &progress_callback {
                 cb(PackProgress {
@@ -39,6 +38,16 @@ pub fn create_tar_gz(
         }
 
         processed += 1;
+    }
+
+    // 发送 100% 完成事件
+    if let Some(cb) = &progress_callback {
+        cb(PackProgress {
+            current_file: String::new(),
+            processed: total,
+            total,
+            percentage: 100.0,
+        });
     }
 
     tar.finish()?;

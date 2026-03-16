@@ -59,8 +59,14 @@ export async function packRemoteChanges(
     }
 }
 
-export async function selectOutputDirectory(): Promise<string> {
-    return invoke("select_output_directory");
+export async function selectOutputDirectory(): Promise<string | null> {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "选择输出目录",
+    });
+    return typeof selected === "string" ? selected : null;
 }
 
 export async function openInExplorer(path: string): Promise<void> {

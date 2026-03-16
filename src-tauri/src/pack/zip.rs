@@ -18,15 +18,16 @@ pub fn create_zip(
     let total = source_files.len();
     let file = File::create(output_path)?;
     let mut zip = zip::ZipWriter::new(file);
-    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options: zip::write::FileOptions<'_, ()> =
+        zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     let mut processed = 0;
     let mut total_size: u64 = 0;
 
     for file_path in source_files {
         if file_path.is_file() {
-            let relative_path = file_path.strip_prefix(base_dir)
+            let relative_path = file_path
+                .strip_prefix(base_dir)
                 .unwrap_or(file_path)
                 .to_string_lossy()
                 .replace('\\', "/");
@@ -40,13 +41,24 @@ pub fn create_zip(
                 });
             }
 
-            zip.start_file(&relative_path, options).map_err(|e| AppError::Pack(e.to_string()))?;
+            zip.start_file(&relative_path, options)
+                .map_err(|e| AppError::Pack(e.to_string()))?;
             let data = std::fs::read(file_path)?;
             zip.write_all(&data)?;
             total_size += data.len() as u64;
         }
 
         processed += 1;
+    }
+
+    // 发送 100% 完成事件
+    if let Some(cb) = &progress_callback {
+        cb(PackProgress {
+            current_file: String::new(),
+            processed: total,
+            total,
+            percentage: 100.0,
+        });
     }
 
     zip.finish().map_err(|e| AppError::Pack(e.to_string()))?;
