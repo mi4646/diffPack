@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { usePackStore } from "@/stores";
+import { ref, computed, onMounted } from "vue";
+import { usePackStore, useAppStore } from "@/stores";
 import AppDialog from "@/components/common/AppDialog.vue";
 
 const packStore = usePackStore();
+const appStore = useAppStore();
 
 const defaultFormat = ref<"zip" | "tarGz">("zip");
 const defaultOutputPath = ref("");
+
+// commit ID 显示开关直接绑定 appStore，切换即时生效并自动持久化
+const showFullCommitId = computed({
+  get: () => appStore.showFullCommitId,
+  set: (val: boolean) => appStore.setShowFullCommitId(val),
+});
 
 // 弹框状态
 const showDialog = ref(false);
@@ -73,6 +80,18 @@ function doConfirmClear() {
         <label>默认输出目录：</label>
         <input type="text" v-model="defaultOutputPath" placeholder="选择默认输出目录..." />
         <button @click="browseOutputPath">浏览</button>
+      </div>
+
+      <div class="setting-row">
+        <label>Commit ID 显示：</label>
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            v-model="showFullCommitId"
+          />
+          显示完整 Commit ID
+        </label>
+        <span class="setting-hint">关闭时仅显示前 7 位短 ID</span>
       </div>
 
       <button @click="saveSettings" class="save-btn">保存设置</button>
@@ -158,5 +177,18 @@ function doConfirmClear() {
   color: var(--text-secondary);
   font-size: 13px;
   margin-top: 8px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: unset;
+}
+
+.setting-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 </style>

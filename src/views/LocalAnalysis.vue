@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useGitStore, usePackStore } from "@/stores";
+import { useGitStore, usePackStore, useAppStore } from "@/stores";
 import { openInExplorer } from "@/services/packService";
 import PackOptions from "@/components/pack/PackOptions.vue";
 import PackProgress from "@/components/pack/PackProgress.vue";
@@ -11,11 +11,14 @@ import type { CommitInfo } from "@/types";
 
 const gitStore = useGitStore();
 const packStore = usePackStore();
+const appStore = useAppStore();
 
 const repoPathInput = ref("");
 const selectionMode = ref<"range" | "list" | "date">("range");
 const startDate = ref("");
 const endDate = ref("");
+// commit 搜索关键词
+const commitSearchKeyword = ref("");
 
 // 弹框状态
 const showDialog = ref(false);
@@ -117,6 +120,18 @@ function selectCommit(commit: CommitInfo, _index: number) {
     }
   }
 }
+
+// 根据搜索关键词过滤后的 commit 列表
+const filteredCommits = computed(() => {
+  const kw = commitSearchKeyword.value.trim().toLowerCase();
+  if (!kw) return gitStore.commits;
+  return gitStore.commits.filter((c) =>
+    c.message.toLowerCase().includes(kw) ||
+    c.author.toLowerCase().includes(kw) ||
+    c.hash.toLowerCase().includes(kw) ||
+    c.shortHash.toLowerCase().includes(kw)
+  );
+});
 
 async function analyzeDiff() {
   try {
@@ -249,6 +264,19 @@ watch(selectionMode, async () => {
         </div>
       </div>
 
+      <!-- commit 搜索框 -->
+      <div class="commit-search-row">
+        <input
+          v-model="commitSearchKeyword"
+          type="text"
+          class="commit-search-input"
+          placeholder="搜索 commit message、作者、hash..."
+          clearable
+        />
+        <span v-if="commitSearchKeyword" class="search-clear" @click="commitSearchKeyword = ''">&#x2715;</span>
+        <span class="commit-count">{{ filteredCommits.length }} / {{ gitStore.commits.length }} 个</span>
+      </div>
+
       <!-- Commit 列表 -->
       <div class="commit-mode-hint">
         <span v-if="selectionMode === 'range' || selectionMode === 'date'">
@@ -260,7 +288,7 @@ watch(selectionMode, async () => {
       </div>
       <div class="commit-list">
         <div
-          v-for="(commit, index) in gitStore.commits"
+          v-for="(commit, index) in filteredCommits"
           :key="commit.hash"
           class="commit-item"
           :class="{
@@ -270,7 +298,9 @@ watch(selectionMode, async () => {
           }"
           @click="selectCommit(commit, index)"
         >
-          <span class="commit-hash">{{ commit.shortHash }}</span>
+          <span class="commit-hash" :title="commit.hash">
+            {{ appStore.showFullCommitId ? commit.hash : commit.shortHash }}
+          </span>
           <span class="commit-message">{{ commit.message }}</span>
           <span class="commit-meta">
             <span class="commit-author">{{ commit.author }}</span>
@@ -459,6 +489,41 @@ watch(selectionMode, async () => {
   padding: 4px 0;
 }
 
+.commit-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.commit-search-input {
+  flex: 1;
+  padding-right: 28px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 70px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
+.search-clear:hover {
+  color: var(--error-color);
+}
+
+.commit-count {
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: right;
+}
+
 .commit-list {
   max-height: 400px;
   overflow-y: auto;
@@ -500,6 +565,11 @@ watch(selectionMode, async () => {
   font-family: monospace;
   color: var(--primary-color);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  cursor: default;
 }
 
 .commit-message {
