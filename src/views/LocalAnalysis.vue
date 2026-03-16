@@ -16,6 +16,21 @@ const selectionMode = ref<"range" | "list" | "date">("range");
 const startDate = ref("");
 const endDate = ref("");
 
+// 错误弹框状态
+const showErrorDialog = ref(false);
+const errorDialogTitle = ref("");
+const errorDialogMessage = ref("");
+
+function closeErrorDialog() {
+  showErrorDialog.value = false;
+}
+
+function showError(title: string, message: string) {
+  errorDialogTitle.value = title;
+  errorDialogMessage.value = message;
+  showErrorDialog.value = true;
+}
+
 // 日期范围快捷选项
 const datePresets = [
   { label: "今天", days: 0 },
@@ -42,7 +57,20 @@ async function openRepo() {
     await gitStore.openRepo(repoPathInput.value);
     await loadCommits();
   } catch (e) {
-    console.error("Failed to open repo:", e);
+    const errStr = e instanceof Error ? e.message : String(e);
+    console.error("Failed to open repo:", errStr);
+    if (
+      errStr.includes("code=NotFound") ||
+      errStr.includes("class=Repository") ||
+      errStr.includes("could not find repository")
+    ) {
+      showError(
+        "未找到 Git 仓库",
+        `所选路径不是有效的 Git 仓库，请确认该目录已执行过 git init 或是从远程克隆的仓库。\n\n路径：${repoPathInput.value}`
+      );
+    } else {
+      showError("打开仓库失败", errStr);
+    }
   }
 }
 
@@ -283,6 +311,24 @@ watch(selectionMode, () => {
       <PackResult v-if="packStore.currentTask?.result" :result="packStore.currentTask.result" />
     </section>
   </div>
+
+  <!-- 错误弹框 -->
+  <Teleport to="body">
+    <div v-if="showErrorDialog" class="error-dialog-overlay" @click.self="closeErrorDialog">
+      <div class="error-dialog">
+        <div class="error-dialog-header">
+          <span class="error-dialog-icon">⚠</span>
+          <span class="error-dialog-title">{{ errorDialogTitle }}</span>
+        </div>
+        <div class="error-dialog-body">
+          <p>{{ errorDialogMessage }}</p>
+        </div>
+        <div class="error-dialog-footer">
+          <button class="error-dialog-btn" @click="closeErrorDialog">确定</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -538,5 +584,82 @@ watch(selectionMode, () => {
 .file-actions button:hover {
   background: var(--primary-color);
   color: white;
+}
+
+/* 错误弹框 */
+.error-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.error-dialog {
+  background: var(--card-bg, #fff);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  min-width: 360px;
+  max-width: 520px;
+  width: 90%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.error-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.error-dialog-icon {
+  font-size: 20px;
+  color: #faad14;
+  flex-shrink: 0;
+}
+
+.error-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.error-dialog-body {
+  padding: 16px 20px;
+}
+
+.error-dialog-body p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-color);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.error-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.error-dialog-btn {
+  min-width: 80px;
+  padding: 6px 20px;
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.error-dialog-btn:hover {
+  opacity: 0.85;
 }
 </style>
