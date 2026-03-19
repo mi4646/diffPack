@@ -1,6 +1,12 @@
 # qoder
 .qoder/
 
+# .claude
+.claude/
+
+# .serena
+.serena/
+
 # Logs
 logs
 *.log

@@ -22,39 +22,49 @@ const emit = defineEmits<{
   confirm: [];
   cancel: [];
 }>();
+
+// SVG icons for different types
+const icons = {
+  success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+  error: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+  warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+};
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="dialog-fade">
+    <Transition name="dialog">
       <div v-if="visible" class="dialog-overlay" @click.self="emit('close')">
-        <div class="dialog" :class="type">
+        <div class="dialog" :class="type" role="dialog" aria-modal="true">
           <div class="dialog-header">
-            <span class="dialog-icon">
-              <span v-if="type === 'success'">✓</span>
-              <span v-else-if="type === 'error'">✗</span>
-              <span v-else-if="type === 'warning'">⚠</span>
-              <span v-else>ℹ</span>
-            </span>
-            <span class="dialog-title">{{ title }}</span>
-            <button class="dialog-close" @click="emit('close')">×</button>
+            <div class="dialog-icon" :class="type" v-html="icons[type]"></div>
+            <h3 class="dialog-title">{{ title }}</h3>
+            <button class="dialog-close" @click="emit('close')" aria-label="关闭">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           </div>
+
           <div class="dialog-body">
             <slot>
               <p v-if="message">{{ message }}</p>
             </slot>
           </div>
+
           <div class="dialog-footer">
             <button
               v-if="showCancel"
-              class="dialog-btn cancel-btn"
+              class="btn btn-secondary"
               @click="emit('cancel'); emit('close')"
             >
               {{ cancelText }}
             </button>
             <button
-              class="dialog-btn confirm-btn"
-              :class="type"
+              class="btn"
+              :class="type === 'error' ? 'btn-danger' : 'btn-primary'"
               @click="emit('confirm'); emit('close')"
             >
               {{ confirmText }}
@@ -70,144 +80,168 @@ const emit = defineEmits<{
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  padding: var(--space-4);
 }
 
 .dialog {
-  background: var(--card-bg, #fff);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   min-width: 360px;
-  max-width: 520px;
-  width: 90%;
+  max-width: 480px;
+  width: 100%;
   overflow: hidden;
 }
 
+/* Header */
 .dialog-header {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .dialog-icon {
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  font-weight: bold;
 }
 
-.dialog.success .dialog-icon { color: var(--success-color); }
-.dialog.error .dialog-icon   { color: var(--error-color); }
-.dialog.warning .dialog-icon { color: #faad14; }
-.dialog.info .dialog-icon    { color: var(--primary-color); }
+.dialog-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+
+.dialog-icon.success { color: var(--color-success); }
+.dialog-icon.error { color: var(--color-error); }
+.dialog-icon.warning { color: var(--color-warning); }
+.dialog-icon.info { color: var(--color-info); }
 
 .dialog-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-color);
   flex: 1;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: var(--line-height-tight);
 }
 
 .dialog-close {
-  background: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
   border: none;
-  font-size: 20px;
-  line-height: 1;
-  color: var(--text-secondary);
   cursor: pointer;
-  padding: 0 4px;
-  margin: 0;
-  min-width: unset;
-  height: auto;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-normal);
 }
 
 .dialog-close:hover {
-  color: var(--text-color);
-  background: none;
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
 }
 
+.dialog-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Body */
 .dialog-body {
-  padding: 16px 20px;
+  padding: var(--space-5);
 }
 
 .dialog-body p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-color);
-  line-height: 1.6;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
+/* Footer */
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-color);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-border-light);
+  background: var(--color-bg-elevated);
 }
 
-.dialog-btn {
+/* Buttons */
+.btn {
   min-width: 80px;
-  padding: 6px 20px;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  transition: all var(--transition-normal);
 }
 
-.cancel-btn {
-  background: var(--bg-color);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  border: none;
 }
 
-.cancel-btn:hover {
-  background: var(--border-color);
+.btn-primary:hover {
+  background: var(--color-primary-hover);
 }
 
-.confirm-btn {
-  color: #fff;
+.btn-danger {
+  background: var(--color-error);
+  color: var(--color-text-inverse);
+  border: none;
 }
 
-.confirm-btn.success { background: var(--success-color); }
-.confirm-btn.success:hover { opacity: 0.85; }
-
-.confirm-btn.error   { background: var(--error-color); }
-.confirm-btn.error:hover { opacity: 0.85; }
-
-.confirm-btn.warning { background: #faad14; }
-.confirm-btn.warning:hover { opacity: 0.85; }
-
-.confirm-btn.info    { background: var(--primary-color); }
-.confirm-btn.info:hover { opacity: 0.85; }
-
-/* 过渡动画 */
-.dialog-fade-enter-active,
-.dialog-fade-leave-active {
-  transition: opacity 0.2s ease;
+.btn-danger:hover {
+  background: #b71c1c;
 }
 
-.dialog-fade-enter-active .dialog,
-.dialog-fade-leave-active .dialog {
-  transition: transform 0.2s ease;
+.btn-secondary {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
 }
 
-.dialog-fade-enter-from,
-.dialog-fade-leave-to {
+.btn-secondary:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-text-muted);
+}
+
+/* Transitions */
+.dialog-enter-active,
+.dialog-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.dialog-enter-active .dialog,
+.dialog-leave-active .dialog {
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.dialog-enter-from,
+.dialog-leave-to {
   opacity: 0;
 }
 
-.dialog-fade-enter-from .dialog {
-  transform: scale(0.9);
-}
-
-.dialog-fade-leave-to .dialog {
-  transform: scale(0.9);
+.dialog-enter-from .dialog,
+.dialog-leave-to .dialog {
+  transform: scale(0.95);
+  opacity: 0;
 }
 </style>

@@ -2,38 +2,37 @@
 import { ref, watch, computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useGitStore, usePackStore, useAppStore } from "@/stores";
+import { useRepository, useSelection, useNotifier } from "@/composables";
 import { openInExplorer } from "@/services/packService";
 import PackOptions from "@/components/pack/PackOptions.vue";
 import PackProgress from "@/components/pack/PackProgress.vue";
 import PackResult from "@/components/pack/PackResult.vue";
+import SearchInput from "@/components/common/SearchInput.vue";
+import CommitList from "@/components/common/CommitList.vue";
+import FileList from "@/components/common/FileList.vue";
 import AppDialog from "@/components/common/AppDialog.vue";
-import type { CommitInfo } from "@/types";
+import type { CommitInfo, FileChange } from "@/types";
 
 const gitStore = useGitStore();
 const packStore = usePackStore();
 const appStore = useAppStore();
+const { error } = useNotifier();
+
+// 使用 composables
+const { repoPath, hasRepo, repoInfo, commits, selectedCommits, diffResult, openRepo: openRepoFn, loadCommits, analyzeDiff: analyzeDiffFn, reset: resetRepo } = useRepository();
+
+const { selectionMode, selectCommit: selectCommitFn } = useSelection(
+  () => gitStore.commits,
+  () => gitStore.selectedCommits,
+  (hashes) => { gitStore.selectedCommits = hashes; }
+);
 
 const repoPathInput = ref("");
-const selectionMode = ref<"range" | "list" | "date">("range");
 const startDate = ref("");
 const endDate = ref("");
-// commit 搜索关键词
 const commitSearchKeyword = ref("");
 
-// 弹框状态
-const showDialog = ref(false);
-const dialogTitle = ref("");
-const dialogMessage = ref("");
-const dialogType = ref<"success" | "error" | "warning" | "info">("error");
-
-function showError(title: string, message: string) {
-  dialogTitle.value = title;
-  dialogMessage.value = message;
-  dialogType.value = "error";
-  showDialog.value = true;
-}
-
-// commit 详情弹框
+// Commit 详情弹框
 const showDetailDialog = ref(false);
 const detailCommit = ref<CommitInfo | null>(null);
 
@@ -86,25 +85,14 @@ async function openRepo() {
       errStr.includes("class=Repository") ||
       errStr.includes("could not find repository")
     ) {
-      showError(
+      error(
         "未找到 Git 仓库",
         `所选路径不是有效的 Git 仓库，请确认该目录已执行过 git init 或是从远程克隆的仓库。\n\n路径：${repoPathInput.value}`
       );
     } else {
-      showError("打开仓库失败", errStr);
+      error("打开仓库失败", errStr);
     }
   }
-}
-
-async function loadCommits() {
-  const options: { startDate?: string; endDate?: string; limit?: number } = {};
-  if (selectionMode.value === "date" && startDate.value) {
-    options.startDate = startDate.value;
-    if (endDate.value) {
-      options.endDate = endDate.value;
-    }
-  }
-  await gitStore.loadCommits(options);
 }
 
 function setDatePreset(days: number) {
@@ -158,7 +146,7 @@ async function analyzeDiff() {
     await gitStore.analyzeDiff();
   } catch (e) {
     const errStr = e instanceof Error ? e.message : String(e);
-    showError("分析差异失败", errStr);
+    error("分析差异失败", errStr);
   }
 }
 
@@ -200,7 +188,7 @@ watch([startDate, endDate], async () => {
       await loadCommits();
     } catch (e) {
       const errStr = e instanceof Error ? e.message : String(e);
-      showError("加载提交失败", errStr);
+      error("加载提交失败", errStr);
     }
   }
 });
@@ -212,7 +200,7 @@ watch(selectionMode, async () => {
       await loadCommits();
     } catch (e) {
       const errStr = e instanceof Error ? e.message : String(e);
-      showError("加载提交失败", errStr);
+      error("加载提交失败", errStr);
     }
   }
 });
@@ -230,44 +218,76 @@ watch(repoPathInput, (val) => {
 </script>
 
 <template>
-  <div class="local-analysis">
+  <div class="page-container">
     <!-- 仓库选择 -->
-    <section class="card repo-section">
-      <h3>选择 Git 仓库</h3>
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">选择 Git 仓库</h2>
+      </div>
       <div class="repo-input-row">
         <input
           v-model="repoPathInput"
           type="text"
           placeholder="输入仓库路径或点击浏览..."
-          class="path-input"
+          class="input-field"
           @keyup.enter="openRepo"
           @dblclick="handlePathClick(repoPathInput)"
         />
-        <button @click="browseRepo">浏览</button>
-        <button @click="openRepo" :disabled="!repoPathInput">打开</button>
+        <button class="btn-secondary" @click="browseRepo">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          浏览
+        </button>
+        <button class="btn-primary" @click="openRepo" :disabled="!repoPathInput">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          打开
+        </button>
       </div>
       <div v-if="gitStore.repoInfo" class="repo-info">
-        <span class="repo-name">{{ gitStore.repoInfo.name }}</span>
-        <span class="branch-badge">{{ gitStore.repoInfo.currentBranch }}</span>
+        <span class="repo-name">
+          <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          {{ gitStore.repoInfo.name }}
+        </span>
+        <span class="badge badge-primary">
+          <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="6" y1="3" x2="6" y2="15"/>
+            <circle cx="18" cy="6" r="3"/>
+            <circle cx="6" cy="18" r="3"/>
+            <path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+          {{ gitStore.repoInfo.currentBranch }}
+        </span>
       </div>
-
     </section>
 
     <!-- Commit 选择 -->
-    <section v-if="gitStore.hasRepo" class="card commit-section">
-      <h3>选择 Commit</h3>
+    <section v-if="gitStore.hasRepo" class="card">
+      <div class="card-header">
+        <h2 class="card-title">选择 Commit</h2>
+      </div>
+
+      <!-- 选择模式 -->
       <div class="selection-mode">
-        <label>
-          <input type="radio" v-model="selectionMode" value="range" />
-          范围选择
+        <label class="radio-label">
+          <input type="radio" v-model="selectionMode" value="range" class="radio-input" />
+          <span class="radio-control"></span>
+          <span class="radio-text">范围选择</span>
         </label>
-        <label>
-          <input type="radio" v-model="selectionMode" value="list" />
-          列表选择
+        <label class="radio-label">
+          <input type="radio" v-model="selectionMode" value="list" class="radio-input" />
+          <span class="radio-control"></span>
+          <span class="radio-text">列表选择</span>
         </label>
-        <label>
-          <input type="radio" v-model="selectionMode" value="date" />
-          时间范围
+        <label class="radio-label">
+          <input type="radio" v-model="selectionMode" value="date" class="radio-input" />
+          <span class="radio-control"></span>
+          <span class="radio-text">时间范围</span>
         </label>
       </div>
 
@@ -277,39 +297,59 @@ watch(repoPathInput, (val) => {
           <button
             v-for="preset in datePresets"
             :key="preset.days"
-            class="preset-btn"
+            class="btn-ghost btn-sm"
             @click="setDatePreset(preset.days)"
           >
             {{ preset.label }}
           </button>
         </div>
         <div class="date-inputs">
-          <label>
-            开始日期：
-            <input type="date" v-model="startDate" />
+          <label class="form-label">
+            开始日期
+            <input type="date" v-model="startDate" class="input-field input-sm" />
           </label>
-          <label>
-            结束日期：
-            <input type="date" v-model="endDate" />
+          <label class="form-label">
+            结束日期
+            <input type="date" v-model="endDate" class="input-field input-sm" />
           </label>
         </div>
       </div>
 
       <!-- commit 搜索框 -->
-      <div class="commit-search-row">
-        <input
-          v-model="commitSearchKeyword"
-          type="text"
-          class="commit-search-input"
-          placeholder="搜索 commit message、作者、hash..."
-          clearable
-        />
-        <span v-if="commitSearchKeyword" class="search-clear" @click="commitSearchKeyword = ''">&#x2715;</span>
+      <div class="search-row">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            v-model="commitSearchKeyword"
+            type="text"
+            class="search-input"
+            placeholder="搜索 commit message、作者、hash..."
+          />
+          <button
+            v-if="commitSearchKeyword"
+            class="search-clear"
+            @click="commitSearchKeyword = ''"
+            aria-label="清除搜索"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
         <span class="commit-count">{{ filteredCommits.length }} / {{ gitStore.commits.length }} 个</span>
       </div>
 
-      <!-- Commit 列表 -->
-      <div class="commit-mode-hint">
+      <!-- 操作提示 -->
+      <div class="mode-hint">
+        <svg class="hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
         <span v-if="selectionMode === 'range' || selectionMode === 'date'">
           点击选择起始 commit，再次点击选择终止 commit
         </span>
@@ -317,6 +357,8 @@ watch(repoPathInput, (val) => {
           点击可多选，将对第一个和第二个选中的 commit 进行差异分析
         </span>
       </div>
+
+      <!-- Commit 列表 -->
       <div class="commit-list">
         <div
           v-for="(commit, index) in filteredCommits"
@@ -329,20 +371,27 @@ watch(repoPathInput, (val) => {
           }"
           @click="selectCommit(commit, index)"
         >
-          <!-- 第一行：hash + 作者 + 时间 + 详情 -->
+          <!-- 第一行：hash + 作者 + 时间 -->
           <div class="commit-header">
-            <div class="commit-header-left">
-              <span class="commit-hash-badge" :title="commit.hash">
+            <div class="commit-meta">
+              <span class="hash-badge" :title="commit.hash">
                 {{ appStore.showFullCommitId ? commit.hash : commit.shortHash }}
               </span>
               <span class="commit-author">{{ commit.author }}</span>
               <span class="commit-date">{{ commit.date }}</span>
             </div>
             <button
-              class="detail-btn"
+              class="btn-ghost btn-sm"
               title="查看详情"
               @click.stop="showCommitDetail(commit)"
-            >详情</button>
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              详情
+            </button>
           </div>
           <!-- 第二行：commit 描述 -->
           <div class="commit-body">
@@ -351,25 +400,42 @@ watch(repoPathInput, (val) => {
         </div>
       </div>
 
-      <div class="selected-info" v-if="gitStore.selectedCommits.length > 0">
-        已选择 {{ gitStore.selectedCommits.length }} 个 commit
+      <!-- 已选择信息 -->
+      <div v-if="gitStore.selectedCommits.length > 0" class="selected-info">
+        <span class="selected-count">已选择 {{ gitStore.selectedCommits.length }} 个 commit</span>
         <button
+          class="btn-primary"
           @click="analyzeDiff"
           :disabled="gitStore.selectedCommits.length < 2 || gitStore.isLoading"
         >
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
           分析差异
         </button>
       </div>
     </section>
 
     <!-- 差异预览 -->
-    <section v-if="gitStore.hasDiff" class="card diff-section">
-      <h3>差异预览</h3>
-      <div class="diff-stats">
-        <span>共 {{ gitStore.diffResult?.totalFiles }} 个文件变更</span>
-        <span class="text-success">+{{ gitStore.diffResult?.totalAdditions }}</span>
-        <span class="text-error">-{{ gitStore.diffResult?.totalDeletions }}</span>
+    <section v-if="gitStore.hasDiff" class="card">
+      <div class="card-header">
+        <h2 class="card-title">差异预览</h2>
+        <div class="diff-stats">
+          <span class="stat-item">
+            <span class="stat-value">{{ gitStore.diffResult?.totalFiles }}</span>
+            <span class="stat-label">个文件变更</span>
+          </span>
+          <span class="stat-item text-success">
+            <span class="stat-value">+{{ gitStore.diffResult?.totalAdditions }}</span>
+          </span>
+          <span class="stat-item text-error">
+            <span class="stat-value">-{{ gitStore.diffResult?.totalDeletions }}</span>
+          </span>
+        </div>
       </div>
+
       <div class="file-list">
         <div
           v-for="change in gitStore.diffResult?.changes"
@@ -384,50 +450,56 @@ watch(repoPathInput, (val) => {
             type="checkbox"
             :checked="gitStore.selectedFiles.includes(change.path)"
             @click.stop
+            class="checkbox"
           />
           <span
-            class="change-type"
+            class="change-badge"
             :class="{
-              added: change.changeType === 'added',
-              modified: change.changeType === 'modified',
-              deleted: change.changeType === 'deleted',
-              renamed: change.changeType === 'renamed',
+              'change-added': change.changeType === 'added',
+              'change-modified': change.changeType === 'modified',
+              'change-deleted': change.changeType === 'deleted',
+              'change-renamed': change.changeType === 'renamed',
             }"
           >
             {{ change.changeType }}
           </span>
           <span
-                      class="file-path"
-                      :title="'双击打开所在目录'"
-                      @dblclick.stop="handleFilePathClick(change.path)"
-                    >{{ change.path }}</span>
+            class="file-path"
+            :title="'双击打开所在目录'"
+            @dblclick.stop="handleFilePathClick(change.path)"
+          >{{ change.path }}</span>
           <span v-if="change.oldPath" class="old-path">← {{ change.oldPath }}</span>
         </div>
       </div>
+
       <div class="file-actions">
-        <button @click="gitStore.selectAllFiles">全选</button>
-        <button @click="gitStore.deselectAllFiles">取消全选</button>
+        <button class="btn-secondary btn-sm" @click="gitStore.selectAllFiles">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          全选
+        </button>
+        <button class="btn-secondary btn-sm" @click="gitStore.deselectAllFiles">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          </svg>
+          取消全选
+        </button>
       </div>
     </section>
 
     <!-- 打包选项 -->
-    <section v-if="gitStore.hasDiff" class="card pack-section">
-      <h3>打包选项</h3>
+    <section v-if="gitStore.hasDiff" class="card">
+      <div class="card-header">
+        <h2 class="card-title">打包选项</h2>
+      </div>
       <PackOptions @pack="startPack" />
-      
+
       <PackProgress v-if="packStore.progress" :progress="packStore.progress" />
-      
+
       <PackResult v-if="packStore.currentTask?.result" :result="packStore.currentTask.result" />
     </section>
   </div>
-
-  <AppDialog
-    :visible="showDialog"
-    :title="dialogTitle"
-    :message="dialogMessage"
-    :type="dialogType"
-    @close="showDialog = false"
-  />
 
   <!-- commit 详情弹框 -->
   <AppDialog
@@ -441,156 +513,226 @@ watch(repoPathInput, (val) => {
 </template>
 
 <style scoped>
-.local-analysis {
+.page-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-4);
+  max-width: var(--max-content-width);
+  margin: 0 auto;
 }
 
+/* ========== Repo Section ========== */
 .repo-input-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.repo-input-row input {
+.repo-input-row .input-field {
   flex: 1;
-}
-
-.repo-input-row .path-input {
-  cursor: pointer;
-}
-
-.repo-input-row .path-input:hover {
-  background-color: var(--bg-color);
 }
 
 .repo-info {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-light);
 }
 
 .repo-name {
-  font-weight: 500;
-}
-
-.branch-badge {
-  background: var(--primary-color);
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.error-message {
-  color: var(--error-color);
-  margin-top: 8px;
-}
-
-.selection-mode {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.selection-mode label {
   display: flex;
   align-items: center;
-  gap: 4px;
-  cursor: pointer;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
 }
 
+.info-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+}
+
+.badge-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+}
+
+/* ========== Selection Mode ========== */
+.selection-mode {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.radio-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.radio-control {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  position: relative;
+  transition: all var(--transition-normal);
+}
+
+.radio-input:checked + .radio-control {
+  border-color: var(--color-primary);
+}
+
+.radio-input:checked + .radio-control::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.radio-text {
+  color: var(--color-text-secondary);
+}
+
+/* ========== Date Range ========== */
 .date-range {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .date-presets {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.preset-btn {
-  padding: 4px 12px;
-  font-size: 12px;
-  background: var(--bg-color);
-  color: var(--text-color);
-}
-
-.preset-btn:hover {
-  background: var(--primary-color);
-  color: white;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .date-inputs {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
-.date-inputs label {
+.date-inputs .form-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.commit-mode-hint {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-  padding: 4px 0;
-}
-
-.commit-search-row {
+/* ========== Search ========== */
+.search-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.search-input-wrapper {
   position: relative;
+  flex: 1;
 }
 
-.commit-search-input {
-  flex: 1;
-  padding-right: 28px;
+.search-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding-left: 40px;
+  padding-right: 32px;
 }
 
 .search-clear {
   position: absolute;
-  right: 70px;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
   cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1;
-  user-select: none;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
 }
 
 .search-clear:hover {
-  color: var(--error-color);
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
+.search-clear svg {
+  width: 14px;
+  height: 14px;
 }
 
 .commit-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
   white-space: nowrap;
-  font-size: 12px;
-  color: var(--text-secondary);
-  min-width: 60px;
+  min-width: 80px;
   text-align: right;
 }
 
+/* ========== Mode Hint ========== */
+.mode-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.hint-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ========== Commit List ========== */
 .commit-list {
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
 }
 
 .commit-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-fast);
 }
 
 .commit-item:last-child {
@@ -598,80 +740,48 @@ watch(repoPathInput, (val) => {
 }
 
 .commit-item:hover {
-  background: var(--bg-color);
+  background: var(--color-bg-hover);
 }
 
 .commit-item.selected {
-  background: #e6f7ff;
+  background: var(--color-primary-subtle);
 }
 
 .commit-item.selected-first {
-  background: #bae7ff;
+  background: #d4e4f7;
 }
 
 .commit-item.selected-second {
-  background: #91d5ff;
+  background: #c0d8ef;
 }
 
-/* 第一行：hash + 作者 + 日期 + 详情按钮 */
+/* 第一行：hash + 作者 + 日期 */
 .commit-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
-.commit-header-left {
+.commit-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   flex-wrap: wrap;
   min-width: 0;
 }
 
-.commit-hash-badge {
-  font-family: monospace;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--primary-color);
-  background: rgba(24, 144, 255, 0.08);
-  border: 1px solid rgba(24, 144, 255, 0.25);
-  border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: default;
-}
-
 .commit-author {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-color);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
 .commit-date {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
   white-space: nowrap;
-}
-
-.detail-btn {
-  padding: 1px 8px;
-  font-size: 11px;
-  height: auto;
-  line-height: 1.6;
-  background: transparent;
-  color: var(--primary-color);
-  border: 1px solid rgba(24, 144, 255, 0.35);
-  border-radius: 3px;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.detail-btn:hover {
-  background: rgba(24, 144, 255, 0.08);
 }
 
 /* 第二行：commit 说明 */
@@ -680,42 +790,68 @@ watch(repoPathInput, (val) => {
 }
 
 .commit-message {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
 }
 
+/* ========== Selected Info ========== */
 .selected-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-light);
 }
 
+.selected-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ========== Diff Stats ========== */
 .diff-stats {
   display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: var(--space-4);
 }
 
+.stat-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.stat-value {
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ========== File List ========== */
 .file-list {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
 }
 
 .file-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
 }
 
@@ -724,73 +860,97 @@ watch(repoPathInput, (val) => {
 }
 
 .file-item:hover {
-  background: var(--bg-color);
+  background: var(--color-bg-hover);
 }
 
 .file-item.selected {
-  background: #f6ffed;
+  background: var(--color-success-bg);
 }
 
-.change-type {
-  font-size: 11px;
+.checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.change-badge {
+  font-size: var(--font-size-xs);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   text-transform: uppercase;
-  font-weight: 500;
-}
-
-.change-type.added {
-  background: #d9f7be;
-  color: #389e0d;
-}
-
-.change-type.modified {
-  background: #fff1b8;
-  color: #d48806;
-}
-
-.change-type.deleted {
-  background: #ffccc7;
-  color: #cf1322;
-}
-
-.change-type.renamed {
-  background: #e6f7ff;
-  color: #0958d9;
+  font-weight: var(--font-weight-medium);
+  flex-shrink: 0;
 }
 
 .file-path {
   flex: 1;
-  font-family: monospace;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-path:hover {
+  color: var(--color-primary);
   text-decoration: underline;
-  color: var(--primary-color);
 }
 
 .old-path {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  flex-shrink: 0;
 }
 
+/* ========== File Actions ========== */
 .file-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--space-2);
 }
 
-.file-actions button {
-  background: var(--bg-color);
-  color: var(--text-color);
+/* ========== Button Icons ========== */
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
 }
 
-.file-actions button:hover {
-  background: var(--primary-color);
-  color: white;
+/* ========== Input Field ========== */
+.input-field {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  background: var(--color-bg-surface);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
+.input-field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
 
+.input-sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .selection-mode {
+    flex-wrap: wrap;
+  }
+
+  .date-inputs {
+    flex-direction: column;
+  }
+
+  .commit-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+}
 </style>
