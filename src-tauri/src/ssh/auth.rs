@@ -25,19 +25,48 @@ pub async fn authenticate(
         }
         AuthMethod::KeyFile { key_path, passphrase } => {
             // 使用 russh::keys::PrivateKey 读取密钥文件
-            let privkey_path = std::path::Path::new(key_path);
-            let key_data = std::fs::read(privkey_path)?;
+            // 展开路径中的 ~ 符号
+            let expanded_path = if key_path.starts_with('~') {
+                if let Some(home_dir) = dirs::home_dir() {
+                    home_dir.join(key_path.strip_prefix("~").unwrap())
+                } else {
+                    std::path::PathBuf::from(key_path)
+                }
+            } else {
+                std::path::PathBuf::from(key_path)
+            };
 
-            // 尝试解析密钥，如果是加密的且有密码短语则使用密码
+            let key_data = std::fs::read(&expanded_path)
+                .map_err(|e| AppError::Ssh(format!("Failed to read key file '{}': {}", expanded_path.display(), e)))?;
+
+            // 尝试多种方式解析密钥，提高兼容性
             let key_pair = match PrivateKey::from_openssh(&key_data) {
                 Ok(key) => key,
-                Err(e) if e.to_string().contains("encrypted") && passphrase.is_some() => {
-                    // 对于加密密钥，russh 0.58 的 ssh-key 版本需要使用 with_passphrase
-                    // 临时实现：先返回错误提示用户暂时使用无密码密钥或密码认证
-                    return Err(AppError::Ssh("Encrypted private keys are not yet supported in this version. Please use an unencrypted key or password authentication.".to_string()));
-                }
-                Err(e) => {
-                    return Err(AppError::Ssh(format!("Failed to read key file: {}", e)));
+                Err(openssh_err) => {
+                    // 尝试从PEM格式解析
+                    match PrivateKey::from_bytes(&key_data) {
+                        Ok(key) => key,
+                        Err(bytes_err) => {
+                            // 尝试PPK格式（PuTTY密钥）
+                            if let Ok(key_str) = String::from_utf8(key_data.clone()) {
+                                match PrivateKey::from_ppk(&key_str, passphrase.clone()) {
+                                    Ok(key) => key,
+                                    Err(ppk_err) => {
+                                        // 所有解析方式都失败
+                                        return Err(AppError::Ssh(format!(
+                                            "Failed to parse key file: \n- OpenSSH format: {}\n- Raw bytes: {}\n- PPK format: {}",
+                                            openssh_err, bytes_err, ppk_err
+                                        )));
+                                    }
+                                }
+                            } else {
+                                return Err(AppError::Ssh(format!(
+                                    "Failed to parse key file: \n- OpenSSH format: {}\n- Raw bytes: {}",
+                                    openssh_err, bytes_err
+                                )));
+                            }
+                        }
+                    }
                 }
             };
 
@@ -47,10 +76,16 @@ pub async fn authenticate(
             let auth_result = session
                 .authenticate_publickey(username, key_with_alg)
                 .await
-                .map_err(|e| AppError::Ssh(format!("Key file auth failed: {}", e)))?;
+                .map_err(|e| AppError::Ssh(format!("Key file authentication failed: {}", e)))?;
 
             if !auth_result.success() {
-                return Err(AppError::Ssh("Key file authentication failed".to_string()));
+                return Err(AppError::Ssh(
+                    "Key file authentication failed. Please check:\n\
+                    1. The public key is added to ~/.ssh/authorized_keys on the server\n\
+                    2. The username is correct\n\
+                    3. The key file has correct permissions (should be readable only by you)\n\
+                    4. The key format is supported (OpenSSH, PEM, PPK)".to_string()
+                ));
             }
         }
         AuthMethod::SshAgent => {

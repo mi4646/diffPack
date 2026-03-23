@@ -57,7 +57,19 @@ pub fn parse_ssh_config_file(path: &Path) -> Result<Vec<SshConfigEntry>> {
             }
             "identityfile" => {
                 if let Some(ref mut entry) = current_entry {
-                    entry.identity_file = Some(value.to_string());
+                    // 展开路径中的 ~ 符号
+                    let expanded_path = if value.starts_with('~') {
+                        if let Some(home_dir) = dirs::home_dir() {
+                            home_dir.join(value.strip_prefix("~").unwrap())
+                                .to_string_lossy()
+                                .to_string()
+                        } else {
+                            value.to_string()
+                        }
+                    } else {
+                        value.to_string()
+                    };
+                    entry.identity_file = Some(expanded_path);
                 }
             }
             _ => {}
