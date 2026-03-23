@@ -13,8 +13,8 @@ pub fn get_diff(repo: &Repository, from_commit: &str, to_commit: &str) -> Result
     let diff = repo.diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)?;
 
     let mut changes = Vec::new();
-    let mut total_additions = 0;
-    let mut total_deletions = 0;
+    let mut _total_additions = 0;
+    let mut _total_deletions = 0;
 
     diff.foreach(
         &mut |delta, _| {
@@ -53,8 +53,8 @@ pub fn get_diff(repo: &Repository, from_commit: &str, to_commit: &str) -> Result
 
     // 计算统计信息
     let stats = diff.stats()?;
-    total_additions = stats.insertions();
-    total_deletions = stats.deletions();
+    _total_additions = stats.insertions();
+    _total_deletions = stats.deletions();
 
     // 获取涉及的 commits 信息
     let commits = get_commits_between(repo, from_commit, to_commit)?;
@@ -65,8 +65,8 @@ pub fn get_diff(repo: &Repository, from_commit: &str, to_commit: &str) -> Result
         commits,
         changes,
         total_files,
-        total_additions,
-        total_deletions,
+        total_additions: _total_additions,
+        total_deletions: _total_deletions,
     })
 }
 

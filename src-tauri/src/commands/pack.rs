@@ -61,8 +61,6 @@ pub async fn pack_local_changes(
 /// 选择输出目录
 #[command]
 pub async fn select_output_directory() -> Result<String, String> {
-    use tauri_plugin_dialog::DialogExt;
-
     // 返回默认路径，实际选择由前端调用 dialog 插件完成
     let home = dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())

@@ -11,7 +11,7 @@ pub fn create_zip(
     output_path: &Path,
     source_files: &[std::path::PathBuf],
     base_dir: &Path,
-    options: &PackOptions,
+    _options: &PackOptions,
     progress_callback: Option<impl Fn(PackProgress) + Send + Sync>,
 ) -> Result<PackResult> {
     let start = Instant::now();
@@ -22,7 +22,7 @@ pub fn create_zip(
         zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     let mut processed = 0;
-    let mut total_size: u64 = 0;
+    let mut _total_size: u64 = 0;
 
     for file_path in source_files {
         if file_path.is_file() {
@@ -45,7 +45,7 @@ pub fn create_zip(
                 .map_err(|e| AppError::Pack(e.to_string()))?;
             let data = std::fs::read(file_path)?;
             zip.write_all(&data)?;
-            total_size += data.len() as u64;
+            _total_size += data.len() as u64;
         }
 
         processed += 1;

@@ -10,7 +10,7 @@ pub fn create_tar_gz(
     output_path: &Path,
     source_files: &[std::path::PathBuf],
     base_dir: &Path,
-    options: &PackOptions,
+    _options: &PackOptions,
     progress_callback: Option<impl Fn(PackProgress) + Send + Sync>,
 ) -> Result<PackResult> {
     let start = Instant::now();

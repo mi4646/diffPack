@@ -1,33 +1,34 @@
 use crate::error::{AppError, Result};
 use crate::models::{CommitInfo, ConnectionStatus, DiffResult, FileChange, FileChangeType, SshConfig};
 use crate::ssh::auth::authenticate;
+use crate::ssh::session::{create_session, SshSession};
+use shell_escape::escape;
 use std::collections::HashMap;
-use std::io::Read;
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 lazy_static::lazy_static! {
-    static ref SSH_SESSIONS: Arc<Mutex<HashMap<String, ssh2::Session>>> = Arc::new(Mutex::new(HashMap::new()));
+    pub static ref SSH_SESSIONS: Arc<Mutex<HashMap<String, SshSession>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 /// 生成会话 ID
 fn generate_session_id() -> String {
-    format!("sess_{}", chrono::Utc::now().timestamp_millis())
+    use rand::Rng;
+    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let mut rng = rand::thread_rng();
+    let random_suffix: String = (0..8)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    format!("sess_{}_{}", chrono::Utc::now().timestamp_millis(), random_suffix)
 }
 
 /// 测试 SSH 连接
-pub fn test_connection(config: &SshConfig) -> Result<ConnectionStatus> {
-    let tcp = TcpStream::connect((config.host.as_str(), config.port))
-        .map_err(|e| AppError::Ssh(format!("Connection failed: {}", e)))?;
-
-    let mut sess = ssh2::Session::new()
-        .map_err(|e| AppError::Ssh(format!("Session creation failed: {}", e)))?;
-
-    sess.set_tcp_stream(tcp);
-    sess.handshake()
-        .map_err(|e| AppError::Ssh(format!("Handshake failed: {}", e)))?;
-
-    authenticate(&sess, &config.username, &config.auth_method)?;
+pub async fn test_connection(config: &SshConfig) -> Result<ConnectionStatus> {
+    let mut sess = create_session(config).await?;
+    authenticate(&mut sess.session, &config.username, &config.auth_method).await?;
 
     let server_info = format!("{}:{}", config.host, config.port);
 
@@ -39,71 +40,54 @@ pub fn test_connection(config: &SshConfig) -> Result<ConnectionStatus> {
 }
 
 /// 建立 SSH 连接
-pub fn connect(config: &SshConfig) -> Result<String> {
-    let tcp = TcpStream::connect((config.host.as_str(), config.port))
-        .map_err(|e| AppError::Ssh(format!("Connection failed: {}", e)))?;
-
-    let mut sess = ssh2::Session::new()
-        .map_err(|e| AppError::Ssh(format!("Session creation failed: {}", e)))?;
-
-    sess.set_tcp_stream(tcp);
-    sess.handshake()
-        .map_err(|e| AppError::Ssh(format!("Handshake failed: {}", e)))?;
-
-    authenticate(&sess, &config.username, &config.auth_method)?;
+pub async fn connect(config: &SshConfig) -> Result<String> {
+    let mut sess = create_session(config).await?;
+    authenticate(&mut sess.session, &config.username, &config.auth_method).await?;
 
     let session_id = generate_session_id();
 
-    let mut sessions = SSH_SESSIONS.lock()
-        .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
+    let mut sessions = SSH_SESSIONS.lock().await;
     sessions.insert(session_id.clone(), sess);
 
     Ok(session_id)
 }
 
 /// 断开 SSH 连接
-pub fn disconnect(session_id: &str) -> Result<()> {
-    let mut sessions = SSH_SESSIONS.lock()
-        .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
+pub async fn disconnect(session_id: &str) -> Result<()> {
+    let mut sessions = SSH_SESSIONS.lock().await;
 
-    if let Some(sess) = sessions.remove(session_id) {
-        let _ = sess.disconnect(None, "Closing", Some(""));
+    if let Some(mut sess) = sessions.remove(session_id) {
+        // 关闭SFTP会话
+        if let Some(sftp) = sess.sftp.take() {
+            let _ = sftp.close().await;
+        }
+        // 关闭SSH会话
+        use russh::Disconnect;
+        let _ = sess.session.disconnect(Disconnect::ByApplication, "Closing", "en").await;
     }
 
     Ok(())
 }
 
 /// 执行远程命令
-fn execute_remote_command(session: &ssh2::Session, command: &str) -> Result<String> {
-    let mut channel = session.channel_session()
-        .map_err(|e| AppError::Ssh(format!("Channel error: {}", e)))?;
-
-    channel.exec(command)
-        .map_err(|e| AppError::Ssh(format!("Command execution failed: {}", e)))?;
-
-    let mut output = String::new();
-    channel.read_to_string(&mut output)
-        .map_err(|e| AppError::Ssh(format!("Read output failed: {}", e)))?;
-
-    channel.wait_close()
-        .map_err(|e| AppError::Ssh(format!("Close channel failed: {}", e)))?;
-
-    Ok(output)
+async fn execute_remote_command(session: &mut SshSession, command: &str) -> Result<String> {
+    session.execute_command(command).await
 }
 
 /// 获取远程仓库的 Commits
-pub fn get_remote_commits(session_id: &str, repo_path: &str, limit: usize) -> Result<Vec<CommitInfo>> {
-    let sessions = SSH_SESSIONS.lock()
-        .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
-    let session = sessions.get(session_id)
+pub async fn get_remote_commits(session_id: &str, repo_path: &str, limit: usize) -> Result<Vec<CommitInfo>> {
+    let mut sessions = SSH_SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
         .ok_or_else(|| AppError::SessionNotFound(session_id.to_string()))?;
 
+    // 转义 shell 元字符防止注入
+    let repo_path_escaped = escape(repo_path.into());
     let command = format!(
         "cd {} && git log --pretty=format:'%H|%h|%s|%an|%ae|%at' -n {}",
-        repo_path, limit
+        repo_path_escaped, limit
     );
 
-    let output = execute_remote_command(session, &command)?;
+    let output = execute_remote_command(session, &command).await?;
 
     let commits: Vec<CommitInfo> = output.lines()
         .filter_map(|line| {
@@ -132,19 +116,21 @@ pub fn get_remote_commits(session_id: &str, repo_path: &str, limit: usize) -> Re
 }
 
 /// 获取远程差异
-pub fn get_remote_diff(session_id: &str, repo_path: &str, from: &str, to: &str) -> Result<DiffResult> {
-    let sessions = SSH_SESSIONS.lock()
-        .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
-    let session = sessions.get(session_id)
+pub async fn get_remote_diff(session_id: &str, repo_path: &str, from: &str, to: &str) -> Result<DiffResult> {
+    let mut sessions = SSH_SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
         .ok_or_else(|| AppError::SessionNotFound(session_id.to_string()))?;
 
     // 获取变更文件列表
+    let repo_path_escaped = escape(repo_path.into());
+    let from_escaped = escape(from.into());
+    let to_escaped = escape(to.into());
     let command = format!(
         "cd {} && git diff --name-status {} {}",
-        repo_path, from, to
+        repo_path_escaped, from_escaped, to_escaped
     );
 
-    let output = execute_remote_command(session, &command)?;
+    let output = execute_remote_command(session, &command).await?;
 
     let mut changes = Vec::new();
     for line in output.lines() {
@@ -174,12 +160,15 @@ pub fn get_remote_diff(session_id: &str, repo_path: &str, from: &str, to: &str) 
     }
 
     // 获取统计信息
+    let repo_path_escaped = escape(repo_path.into());
+    let from_escaped = escape(from.into());
+    let to_escaped = escape(to.into());
     let stat_command = format!(
         "cd {} && git diff --shortstat {} {}",
-        repo_path, from, to
+        repo_path_escaped, from_escaped, to_escaped
     );
 
-    let stat_output = execute_remote_command(session, &stat_command)?;
+    let stat_output = execute_remote_command(session, &stat_command).await?;
     let (total_additions, total_deletions) = parse_shortstat(&stat_output);
     let total_files = changes.len();
 

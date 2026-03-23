@@ -14,21 +14,21 @@ pub async fn parse_ssh_config() -> Result<Vec<SshConfigEntry>, String> {
 /// 测试 SSH 连接
 #[command]
 pub async fn test_ssh_connection(config: SshConfig) -> Result<ConnectionStatus, String> {
-    let status = test_connection(&config).map_err(|e| e.to_string())?;
+    let status = test_connection(&config).await.map_err(|e| e.to_string())?;
     Ok(status)
 }
 
 /// 建立 SSH 连接
 #[command]
 pub async fn connect_ssh(config: SshConfig) -> Result<String, String> {
-    let session_id = connect(&config).map_err(|e| e.to_string())?;
+    let session_id = connect(&config).await.map_err(|e| e.to_string())?;
     Ok(session_id)
 }
 
 /// 断开 SSH 连接
 #[command]
 pub async fn disconnect_ssh(session_id: String) -> Result<(), String> {
-    disconnect(&session_id).map_err(|e| e.to_string())?;
+    disconnect(&session_id).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -39,7 +39,7 @@ pub async fn get_remote_commits(
     repo_path: String,
     limit: Option<usize>,
 ) -> Result<Vec<crate::models::CommitInfo>, String> {
-    let commits = ssh_get_remote_commits(&session_id, &repo_path, limit.unwrap_or(100))
+    let commits = ssh_get_remote_commits(&session_id, &repo_path, limit.unwrap_or(100)).await
         .map_err(|e| e.to_string())?;
     Ok(commits)
 }
@@ -52,7 +52,7 @@ pub async fn get_remote_diff(
     from_commit: String,
     to_commit: String,
 ) -> Result<DiffResult, String> {
-    let diff = ssh_get_remote_diff(&session_id, &repo_path, &from_commit, &to_commit)
+    let diff = ssh_get_remote_diff(&session_id, &repo_path, &from_commit, &to_commit).await
         .map_err(|e| e.to_string())?;
     Ok(diff)
 }
@@ -60,11 +60,11 @@ pub async fn get_remote_diff(
 /// 打包远程变更（占位实现）
 #[command]
 pub async fn pack_remote_changes(
-    session_id: String,
-    repo_path: String,
-    changes: Vec<crate::models::FileChange>,
-    options: crate::models::PackOptions,
-    app_handle: tauri::AppHandle,
+    _session_id: String,
+    _repo_path: String,
+    _changes: Vec<crate::models::FileChange>,
+    _options: crate::models::PackOptions,
+    _app_handle: tauri::AppHandle,
 ) -> Result<crate::models::PackResult, String> {
     // TODO: 实现远程文件下载和打包
     Err("Remote pack not implemented yet".to_string())

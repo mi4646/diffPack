@@ -11,6 +11,12 @@ pub enum AppError {
     #[error("SSH error: {0}")]
     Ssh(String),
 
+    #[error("Russh error: {0}")]
+    Russh(#[from] russh::Error),
+
+    #[error("SSH key error: {0}")]
+    SshKey(#[from] ssh_key::Error),
+
     #[error("Pack error: {0}")]
     Pack(String),
 
