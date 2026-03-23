@@ -1,5 +1,5 @@
-use crate::models::{ConnectionStatus, DiffResult, SshConfig, SshConfigEntry};
-use crate::ssh::{connect, disconnect, get_remote_commits as ssh_get_remote_commits, get_remote_diff as ssh_get_remote_diff, parse_ssh_config_file, test_connection};
+use crate::models::{ConnectionStatus, DiffResult, SftpFileEntry, SshConfig, SshConfigEntry};
+use crate::ssh::{connect, disconnect, get_remote_commits as ssh_get_remote_commits, get_remote_diff as ssh_get_remote_diff, init_sftp, list_directory, parse_ssh_config_file, test_connection};
 use crate::ssh::get_default_ssh_config_path;
 use tauri::command;
 
@@ -55,6 +55,20 @@ pub async fn get_remote_diff(
     let diff = ssh_get_remote_diff(&session_id, &repo_path, &from_commit, &to_commit).await
         .map_err(|e| e.to_string())?;
     Ok(diff)
+}
+
+/// 初始化SFTP会话
+#[command]
+pub async fn init_sftp_session(session_id: String) -> Result<(), String> {
+    init_sftp(&session_id).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 列出远程目录
+#[command]
+pub async fn list_remote_directory(session_id: String, path: String) -> Result<Vec<SftpFileEntry>, String> {
+    let entries = list_directory(&session_id, &path).await.map_err(|e| e.to_string())?;
+    Ok(entries)
 }
 
 /// 打包远程变更（占位实现）
