@@ -1,18 +1,56 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useSshStore } from "@/stores";
 import AppDialog from "@/components/common/AppDialog.vue";
 import type { SshConfig, AuthMethod } from "@/types";
 
 const sshStore = useSshStore();
 
-const host = ref("");
-const port = ref(22);
-const username = ref("");
-const authType = ref<"password" | "keyFile" | "sshAgent">("password");
-const password = ref("");
-const keyPath = ref("");
-const passphrase = ref("");
+// 使用store里的临时配置，避免组件销毁后值丢失
+const host = ref(sshStore.tempConfig.host || "");
+const port = ref(sshStore.tempConfig.port || 22);
+const username = ref(sshStore.tempConfig.username || "");
+const authType = ref<"password" | "keyFile" | "sshAgent">(
+  (sshStore.tempConfig.authMethod?.type as any) || "password"
+);
+const password = ref(
+  sshStore.tempConfig.authMethod?.type === "password"
+    ? sshStore.tempConfig.authMethod.password || ""
+    : ""
+);
+const keyPath = ref(
+  sshStore.tempConfig.authMethod?.type === "keyFile"
+    ? sshStore.tempConfig.authMethod.keyPath || ""
+    : ""
+);
+const passphrase = ref(
+  sshStore.tempConfig.authMethod?.type === "keyFile"
+    ? sshStore.tempConfig.authMethod.passphrase || ""
+    : ""
+);
+
+// 监听配置变化，同步到store
+watch([host, port, username, authType, password, keyPath, passphrase], () => {
+  let authMethod: any;
+  switch (authType.value) {
+    case "password":
+      authMethod = { type: "password", password: password.value };
+      break;
+    case "keyFile":
+      authMethod = { type: "keyFile", keyPath: keyPath.value, passphrase: passphrase.value || undefined };
+      break;
+    case "sshAgent":
+      authMethod = { type: "sshAgent" };
+      break;
+  }
+
+  sshStore.tempConfig = {
+    host: host.value,
+    port: port.value,
+    username: username.value,
+    authMethod,
+  };
+}, { deep: true });
 
 const isConnecting = ref(false);
 
@@ -70,6 +108,7 @@ async function testConnection() {
 }
 
 async function connect() {
+  isConnecting.value = true;
   try {
     await sshStore.connect(getConfig());
   } catch (e) {
@@ -77,6 +116,8 @@ async function connect() {
     dialogMessage.value = e instanceof Error ? e.message : String(e);
     dialogType.value = "error";
     showDialog.value = true;
+  } finally {
+    isConnecting.value = false;
   }
 }
 

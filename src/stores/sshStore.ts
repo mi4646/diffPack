@@ -8,6 +8,12 @@ export const useSshStore = defineStore("ssh", () => {
     const sessionId = ref<string | null>(null);
     const connectionStatus = ref<ConnectionStatus>({ connected: false });
     const currentConfig = ref<SshConfig | null>(null);
+    const tempConfig = ref<Partial<SshConfig>>({
+        host: "",
+        port: 22,
+        username: "",
+        authMethod: { type: "password", password: "" }
+    });
     const savedHosts = ref<SavedHost[]>([]);
     const sshConfigEntries = ref<SshConfigEntry[]>([]);
     const isLoading = ref(false);
@@ -115,6 +121,7 @@ export const useSshStore = defineStore("ssh", () => {
         sessionId,
         connectionStatus,
         currentConfig,
+        tempConfig,
         savedHosts,
         sshConfigEntries,
         isLoading,
