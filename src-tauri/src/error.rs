@@ -8,15 +8,6 @@ pub enum AppError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("SSH error: {0}")]
-    Ssh(String),
-
-    #[error("Russh error: {0}")]
-    Russh(#[from] russh::Error),
-
-    #[error("SSH key error: {0}")]
-    SshKey(#[from] ssh_key::Error),
-
     #[error("Pack error: {0}")]
     Pack(String),
 
@@ -28,9 +19,6 @@ pub enum AppError {
 
     #[error("Commit not found: {0}")]
     CommitNotFound(String),
-
-    #[error("SSH session not found: {0}")]
-    SessionNotFound(String),
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),

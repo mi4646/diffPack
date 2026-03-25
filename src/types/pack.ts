@@ -28,7 +28,7 @@ export interface PackResult {
 
 export interface PackTask {
     id: string;
-    source: "local" | "remote";
+    source: "local";
     changes: import("./git").FileChange[];
     options: PackOptions;
     status: "pending" | "running" | "completed" | "failed";

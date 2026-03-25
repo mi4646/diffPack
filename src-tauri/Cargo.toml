@@ -20,10 +20,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 git2 = "0.19"
-russh = { version = "0.58", default-features = false, features = ["ring"] }
-russh-sftp = "2.1"
-async-trait = "0.1"
-ssh-key = "0.6"
 zip = "2"
 tar = "0.4"
 flate2 = "1"
@@ -35,3 +31,4 @@ anyhow = "1"
 dirs = "6"
 walkdir = "2"
 lazy_static = "1"
+regex = "1"

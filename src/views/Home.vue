@@ -6,10 +6,6 @@ const router = useRouter();
 function navigateToLocal() {
   router.push("/local");
 }
-
-function navigateToRemote() {
-  router.push("/remote");
-}
 </script>
 
 <template>
@@ -24,7 +20,7 @@ function navigateToRemote() {
           </svg>
         </div>
         <h1 class="home-title">DiffPack</h1>
-        <p class="home-subtitle">选择仓库类型开始分析</p>
+        <p class="home-subtitle">选择本地 Git 仓库开始分析</p>
       </div>
 
       <div class="option-cards">
@@ -36,16 +32,6 @@ function navigateToRemote() {
           </div>
           <h2 class="card-title">本地仓库</h2>
           <p class="card-description">选择本地 Git 仓库进行分析</p>
-        </button>
-
-        <button class="option-card" @click="navigateToRemote">
-          <div class="card-icon remote-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-            </svg>
-          </div>
-          <h2 class="card-title">远程仓库</h2>
-          <p class="card-description">克隆并分析远程 Git 仓库</p>
         </button>
       </div>
     </div>
@@ -63,7 +49,7 @@ function navigateToRemote() {
 }
 
 .home-content {
-  max-width: 640px;
+  max-width: 480px;
   width: 100%;
   text-align: center;
 }
@@ -105,7 +91,7 @@ function navigateToRemote() {
 
 .option-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--space-4);
 }
 
@@ -148,11 +134,6 @@ function navigateToRemote() {
   color: #3b82f6;
 }
 
-.remote-icon {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
 .card-title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
@@ -165,11 +146,5 @@ function navigateToRemote() {
   color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.5;
-}
-
-@media (max-width: 640px) {
-  .option-cards {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

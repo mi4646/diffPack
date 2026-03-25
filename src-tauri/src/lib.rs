@@ -3,7 +3,7 @@ pub mod error;
 pub mod git;
 pub mod models;
 pub mod pack;
-pub mod ssh;
+pub mod utils;
 
 use tauri::Manager;
 
@@ -30,14 +30,6 @@ pub fn run() {
             commands::pack::pack_local_changes,
             commands::pack::select_output_directory,
             commands::pack::open_in_explorer,
-            // SSH commands
-            commands::ssh::parse_ssh_config,
-            commands::ssh::test_ssh_connection,
-            commands::ssh::connect_ssh,
-            commands::ssh::disconnect_ssh,
-            commands::ssh::get_remote_commits,
-            commands::ssh::get_remote_diff,
-            commands::ssh::pack_remote_changes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

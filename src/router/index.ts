@@ -15,11 +15,6 @@ const router = createRouter({
             component: () => import("@/views/LocalAnalysis.vue"),
         },
         {
-            path: "/remote",
-            name: "remote",
-            component: () => import("@/views/RemoteAnalysis.vue"),
-        },
-        {
             path: "/settings",
             name: "settings",
             component: () => import("@/views/Settings.vue"),

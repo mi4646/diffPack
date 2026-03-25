@@ -6,7 +6,6 @@ const route = useRoute();
 // Navigation items - using text labels instead of emojis for professional look
 const navItems = [
   { path: "/local", label: "本地分析", icon: "folder" },
-  { path: "/remote", label: "远程分析", icon: "cloud" },
   { path: "/settings", label: "设置", icon: "settings" },
 ];
 </script>

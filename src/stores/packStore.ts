@@ -18,10 +18,8 @@ export const usePackStore = defineStore("pack", () => {
 
     // Actions
     async function startPack(
-        source: "local" | "remote",
         changes: import("@/types").FileChange[],
-        sessionId?: string,
-        repoPath?: string
+        repoPath: string
     ) {
         isPacking.value = true;
         progress.value = null;
@@ -29,42 +27,24 @@ export const usePackStore = defineStore("pack", () => {
         const taskId = Date.now().toString();
         currentTask.value = {
             id: taskId,
-            source,
+            source: "local",
             changes,
             options: options.value,
             status: "running",
         };
 
         try {
-            let result: PackResult;
-            if (source === "local" && repoPath) {
-                result = await packService.packLocalChanges(
-                    repoPath,
-                    changes,
-                    options.value,
-                    (p) => {
-                        progress.value = p;
-                        if (currentTask.value) {
-                            currentTask.value.progress = p;
-                        }
+            const result = await packService.packLocalChanges(
+                repoPath,
+                changes,
+                options.value,
+                (p) => {
+                    progress.value = p;
+                    if (currentTask.value) {
+                        currentTask.value.progress = p;
                     }
-                );
-            } else if (source === "remote" && sessionId && repoPath) {
-                result = await packService.packRemoteChanges(
-                    sessionId,
-                    repoPath,
-                    changes,
-                    options.value,
-                    (p) => {
-                        progress.value = p;
-                        if (currentTask.value) {
-                            currentTask.value.progress = p;
-                        }
-                    }
-                );
-            } else {
-                throw new Error("Invalid pack parameters");
-            }
+                }
+            );
 
             if (currentTask.value) {
                 currentTask.value.status = "completed";
